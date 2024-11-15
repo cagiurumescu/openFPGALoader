@@ -172,7 +172,7 @@ bool libusb_ll::scan()
 		int ret = libusb_open(usb_dev, &handle);
 		if (ret != 0) {
 			snprintf(mess, 1024,
-				"Error: can't open device with vid:vid = 0x%04x:0x%04x. "
+				"Error: can't open device with vid:pid = 0x%04x:0x%04x. "
 				"Error code %d %s",
 				desc.idVendor, desc.idProduct,
 				ret, libusb_strerror(static_cast<libusb_error>(ret)));
