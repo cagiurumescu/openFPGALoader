@@ -973,8 +973,8 @@ bool Lattice::checkID()
 	_jtag->toggleClk(1000);
 	reg = readStatusReg();
 	displayReadReg(reg);
-	printf("%08x\n", reg);
-	printf("\n");
+	//printf("%08x\n", reg);
+	//printf("\n");
 	return true;
 }
 

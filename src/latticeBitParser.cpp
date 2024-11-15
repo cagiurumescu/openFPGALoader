@@ -105,7 +105,7 @@ int LatticeBitParser::parse()
 		return EXIT_FAILURE;
 	}
 
-	printf("%08x\n", preamble);
+	//printf("%08x\n", preamble);
 	if (preamble == 0xb3bdffff) {
 		/* extract idcode from configuration data (area starting with 0xE2)
 		 * and check compression when machXO2
