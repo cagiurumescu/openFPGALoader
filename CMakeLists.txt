@@ -237,7 +237,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	list(APPEND OPENFPGALOADER_HEADERS src/pathHelper.hpp)
 endif()
 
-if ("${CMAKE_SYSTEM_NAME}" MATCHES "MSYS")
+if (${CMAKE_SYSTEM_NAME} STREQUAL MSYS)
 	# winsock provides ntohs
 	target_link_libraries(openFPGALoader ws2_32)
 
