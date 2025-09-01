@@ -29,6 +29,7 @@ enum communication_type {
 	MODE_REMOTEBITBANG,    /*! Remote Bitbang mode */
 	MODE_CH347,            /*! CH347 JTAG mode */
 	MODE_GWU2X,            /*! Gowin GWU2X JTAG mode */
+	MODE_ESP,              /*! esp32c3, esp32s3 */
 };
 
 /*!
@@ -86,6 +87,7 @@ static std::map <std::string, cable_t> cable_list = {
 	// some cables requires explicit values on some of the I/Os
 	{"anlogicCable",       CABLE_DEF(MODE_ANLOGICCABLE, 0x0547, 0x1002)},
 	{"arm-usb-ocd-h",      FTDI_SER(0x15ba, 0x002b, FTDI_INTF_A, 0x08, 0x1B, 0x09, 0x0B)},
+	{"arm-usb-tiny-h",     FTDI_SER(0x15ba, 0x002a, FTDI_INTF_A, 0x08, 0x1B, 0x09, 0x0B)},
 	{"bus_blaster",        FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0x08, 0x1B, 0x08, 0x0B)},
 	{"bus_blaster_b",      FTDI_SER(0x0403, 0x6010, FTDI_INTF_B, 0x08, 0x0B, 0x08, 0x0B)},
 	{"ch552_jtag",         FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0x08, 0x0B, 0x08, 0x0B)},
@@ -101,6 +103,7 @@ static std::map <std::string, cable_t> cable_list = {
 	{"digilent_hs3",       FTDI_SER(0x0403, 0x6014, FTDI_INTF_A, 0x88, 0x8B, 0x20, 0x30)},
 	{"digilent_ad",        FTDI_SER(0x0403, 0x6014, FTDI_INTF_A, 0x08, 0x0B, 0x80, 0x80)},
 	{"dirtyJtag",          CABLE_DEF(MODE_DIRTYJTAG, 0x1209, 0xC0CA                    )},
+	{"esp32s3",            CABLE_DEF(MODE_ESP, 0x303a, 0x1001                          )},
 	{"efinix_spi_ft4232",  FTDI_SER(0x0403, 0x6011, FTDI_INTF_A, 0x08, 0x8B, 0x00, 0x00)},
 	{"efinix_jtag_ft4232", FTDI_SER(0x0403, 0x6011, FTDI_INTF_B, 0x08, 0x8B, 0x00, 0x00)},
 	{"efinix_spi_ft2232",  FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0x08, 0x8B, 0x00, 0x00)},
@@ -111,6 +114,7 @@ static std::map <std::string, cable_t> cable_list = {
 	{"ft232",              FTDI_SER(0x0403, 0x6014, FTDI_INTF_A, 0x08, 0x0B, 0x08, 0x0B)},
 	{"ft232RL",            FTDI_BB( 0x0403, 0x6001, FTDI_INTF_A, 0x08, 0x0B, 0x08, 0x0B)},
 	{"ft4232",             FTDI_SER(0x0403, 0x6011, FTDI_INTF_A, 0x08, 0x0B, 0x08, 0x0B)},
+	{"ft4232_b",           FTDI_SER(0x0403, 0x6011, FTDI_INTF_B, 0x00, 0x1B, 0x00, 0x00)},
 	{"ft4232hp",           FTDI_SER(0x0403, 0x6043, FTDI_INTF_A, 0x08, 0x0B, 0x00, 0x00)},
 	{"ft4232hp_b",         FTDI_SER(0x0403, 0x6043, FTDI_INTF_B, 0x08, 0x0B, 0x00, 0x00)},
 	{"gwu2x",              CABLE_DEF_FULL(MODE_GWU2X, 0x33AA, 0x0120, 0x02, 0x07, 0x0, 0x0)},
@@ -121,12 +125,14 @@ static std::map <std::string, cable_t> cable_list = {
 	{"jtag-smt2-nc",       FTDI_SER(0x0403, 0x6014, FTDI_INTF_A, 0xe8, 0xeb, 0x00, 0x60)},
 	{"lpc-link2",          CMSIS_CL(0x1fc9, 0x0090                                     )},
 	{"numato",			   FTDI_SER(0x2a19, 0x1009, FTDI_INTF_B, 0x08, 0x4b, 0x00, 0x00)},
+	{"numato-neso",	       FTDI_SER(0x2a19, 0x1005, FTDI_INTF_B, 0x08, 0x4b, 0x00, 0x00)},
 	{"orbtrace",           CMSIS_CL(0x1209, 0x3443                                     )},
 	{"papilio",            FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0x08, 0x0B, 0x09, 0x0B)},
 	{"steppenprobe",       FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0x58, 0xFB, 0x00, 0x99)},
 	{"tigard",             FTDI_SER(0x0403, 0x6010, FTDI_INTF_B, 0x08, 0x3B, 0x00, 0x00)},
 	{"usb-blaster",        CABLE_DEF(MODE_USBBLASTER, 0x09Fb, 0x6001                   )},
 	{"usb-blasterII",      CABLE_DEF(MODE_USBBLASTER, 0x09Fb, 0x6810                   )},
+	{"usb-blasterIII",     FTDI_SER(0x09fb, 0x6022, FTDI_INTF_A, 0x08, 0x3B, 0x00, 0x00)},
 	{"xvc-client",         CABLE_DEF(MODE_XVC_CLIENT, 0x0000, 0x0000                   )},
 #ifdef ENABLE_LIBGPIOD
 	{"libgpiod",           CABLE_DEF(MODE_LIBGPIOD_BITBANG, 0, 0x0000                  )},

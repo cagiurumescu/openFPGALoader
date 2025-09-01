@@ -77,15 +77,15 @@ using namespace std;
 
 Gowin::Gowin(Jtag *jtag, const string filename, const string &file_type, std::string mcufw,
 		Device::prog_type_t prg_type, bool external_flash,
-		bool verify, int8_t verbose): Device(jtag, filename, file_type,
-		verify, verbose),
+		bool verify, int8_t verbose, const std::string& user_flash)
+	: Device(jtag, filename, file_type, verify, verbose),
 		SPIInterface(filename, verbose, 0, verify, false, false),
-		_fs(NULL), _idcode(0), is_gw1n1(false), is_gw2a(false),
-		is_gw1n4(false), is_gw5a(false), _external_flash(external_flash),
+		_idcode(0), is_gw1n1(false), is_gw1n4(false), is_gw1n9(false),
+		is_gw2a(false), is_gw5a(false),
+		_external_flash(external_flash),
 		_spi_sck(BSCAN_SPI_SCK), _spi_cs(BSCAN_SPI_CS),
 		_spi_di(BSCAN_SPI_DI), _spi_do(BSCAN_SPI_DO),
-		_spi_msk(BSCAN_SPI_MSK),
-		_mcufw(NULL)
+		_spi_msk(BSCAN_SPI_MSK)
 {
 	detectFamily();
 
@@ -100,7 +100,7 @@ Gowin::Gowin(Jtag *jtag, const string filename, const string &file_type, std::st
 	if (!_file_extension.empty() && prg_type != Device::RD_FLASH) {
 		if (_file_extension == "fs") {
 			try {
-				_fs = new FsParser(_filename, _mode == Device::MEM_MODE, _verbose);
+				_fs = std::unique_ptr<ConfigBitstreamParser>(new FsParser(_filename, _mode == Device::MEM_MODE, _verbose));
 			} catch (std::exception &e) {
 				throw std::runtime_error(e.what());
 			}
@@ -109,7 +109,7 @@ Gowin::Gowin(Jtag *jtag, const string filename, const string &file_type, std::st
 			if (!_external_flash)
 				throw std::runtime_error("incompatible file format");
 			try {
-				_fs = new RawParser(_filename, false);
+				_fs = std::unique_ptr<ConfigBitstreamParser>(new RawParser(_filename, false));
 			} catch (std::exception &e) {
 				throw std::runtime_error(e.what());
 			}
@@ -118,7 +118,6 @@ Gowin::Gowin(Jtag *jtag, const string filename, const string &file_type, std::st
 		printInfo("Parse file ", false);
 		if (_fs->parse() == EXIT_FAILURE) {
 			printError("FAIL");
-			delete _fs;
 			throw std::runtime_error("can't parse file");
 		} else {
 			printSuccess("DONE");
@@ -144,11 +143,26 @@ Gowin::Gowin(Jtag *jtag, const string filename, const string &file_type, std::st
 		if (_idcode != 0x0100981b)
 			throw std::runtime_error("Microcontroller firmware flashing only supported on GW1NSR-4C");
 
-		_mcufw = new RawParser(mcufw, false);
+		_mcufw = std::unique_ptr<ConfigBitstreamParser>(new RawParser(mcufw, false));
 
 		if (_mcufw->parse() == EXIT_FAILURE) {
 			printError("FAIL");
-			delete _mcufw;
+			throw std::runtime_error("can't parse file");
+		} else {
+			printSuccess("DONE");
+		}
+	}
+
+	if (user_flash.size() > 0) {
+		if (!is_gw1n9)
+			throw std::runtime_error("Unsupported FPGA model (only GW1N(R)-9(C) is supported at the moment)");
+		if (mcufw.size() > 0)
+			throw std::runtime_error("Microcontroller firmware and user flash can't be specified simultaneously");
+
+		_userflash = std::unique_ptr<ConfigBitstreamParser>(new RawParser(user_flash, false));
+
+		if (_userflash->parse() == EXIT_FAILURE) {
+			printError("FAIL");
 			throw std::runtime_error("can't parse file");
 		} else {
 			printSuccess("DONE");
@@ -167,24 +181,9 @@ Gowin::Gowin(Jtag *jtag, const string filename, const string &file_type, std::st
 	}
 }
 
-Gowin::~Gowin()
-{
-	if (_fs)
-		delete _fs;
-	if (_mcufw)
-		delete _mcufw;
-}
-
 bool Gowin::detectFamily()
 {
 	_idcode = _jtag->get_target_device_id();
-
-	/* erase and program flash differ for GW1N1 */
-	if (_idcode == 0x0900281B)
-		is_gw1n1 = true;
-	/* erase and program flash differ for GW1N4, GW1N1Z-1 */
-	if (_idcode == 0x0100381B || _idcode == 0x100681b)
-		is_gw1n4 = true;
 
 	/* bscan spi external flash differ for GW1NSR-4C */
 	if (_idcode == 0x0100981b) {
@@ -200,6 +199,16 @@ bool Gowin::detectFamily()
 	 * algorithm that is not yet supported.
 	 */
 	switch (_idcode) {
+		case 0x0900281B: /* GW1N-1 */
+			is_gw1n1 = true;
+			break;
+		case 0x0100381B: /* GW1N-4B */
+		case 0x0100681b: /* GW1NZ-1 */
+			is_gw1n4 = true;
+			break;
+		case 0x0100481B: /* GW1N(R)-9, although documentation says otherwise */
+			is_gw1n9 = true;
+			break;
 		case 0x0000081b: /* GW2A(R)-18(C) */
 		case 0x0000281b: /* GW2A(R)-55(C) */
 			_external_flash = true;
@@ -208,6 +217,7 @@ bool Gowin::detectFamily()
 			is_gw2a = true;
 			break;
 		case 0x0001081b: /* GW5AST-138 */
+		case 0x0001481b: /* GW5AT-60 */
 		case 0x0001181b: /* GW5AT-138 */
 		case 0x0001281b: /* GW5A-25 */
 			_external_flash = true;
@@ -242,6 +252,8 @@ bool Gowin::send_command(uint8_t cmd)
 			#define le32toh(x) (x)
 		#endif
 	#endif
+#else
+#include <endian.h>
 #endif
 
 uint32_t Gowin::readReg32(uint8_t cmd)
@@ -297,6 +309,13 @@ void Gowin::programFlash()
 		const uint8_t *mcu_data = _mcufw->getData();
 		int mcu_length = _mcufw->getLength();
 		if (!writeFLASH(0x380, mcu_data, mcu_length))
+			return;
+	}
+
+	if (_userflash) {
+		const uint8_t *userflash_data = _userflash->getData();
+		int userflash_length = _userflash->getLength();
+		if (!writeFLASH(0x6D0, userflash_data, userflash_length, true))
 			return;
 	}
 
@@ -377,13 +396,6 @@ void Gowin::programSRAM()
 	if (!eraseSRAM())
 		return;
 
-	/* GW5AST-138k WA. Temporary until found correct solution/sequence */
-	if (is_gw5a && _idcode == 0x0001081b) {
-		printf("double eraseSRAM\n");
-		if (!eraseSRAM())
-			return;
-	}
-
 	/* load bitstream in SRAM */
 	if (!writeSRAM(_fs->getData(), _fs->getLength()))
 		return;
@@ -415,7 +427,7 @@ void Gowin::program(unsigned int offset, bool unprotect_flash)
 void Gowin::checkCRC()
 {
 	uint32_t ucode = readUserCode();
-	uint16_t checksum = static_cast<FsParser *>(_fs)->checksum();
+	uint16_t checksum = static_cast<FsParser *>(_fs.get())->checksum();
 	if (static_cast<uint16_t>(0xffff & ucode) == checksum)
 		goto success;
 	/* no match:
@@ -574,7 +586,7 @@ inline uint32_t bswap_32(uint32_t x)
 }
 
 /* TN653 p. 17-21 */
-bool Gowin::writeFLASH(uint32_t page, const uint8_t *data, int length)
+bool Gowin::writeFLASH(uint32_t page, const uint8_t *data, int length, bool invert_bits)
 {
 
 #if 1
@@ -659,6 +671,13 @@ bool Gowin::writeFLASH(uint32_t page, const uint8_t *data, int length)
                 else
                     tx[x] = t[x];
             }
+
+            if (invert_bits) {
+            	for (int x = 0; x < 4; x++) {
+            		tx[x] ^= 0xFF;
+            	}
+            }
+
             _jtag->shiftDR(tx, NULL, 32);
 
             if (!is_gw1n1)
@@ -788,7 +807,7 @@ bool Gowin::writeSRAM(const uint8_t *data, int length)
 	}
 	progress.done();
 	send_command(0x0a);
-	uint32_t checksum = static_cast<FsParser *>(_fs)->checksum();
+	uint32_t checksum = static_cast<FsParser *>(_fs.get())->checksum();
 	checksum = htole32(checksum);
 	_jtag->shiftDR((uint8_t *)&checksum, NULL, 32);
 	send_command(0x08);
@@ -888,44 +907,64 @@ bool Gowin::eraseSRAM()
 		displayReadReg("before erase sram", status);
 
 	// If flash is invalid, send extra cmd 0x3F before SRAM erase
-	// This is required on GW5A-25
-	bool auto_boot_2nd_fail = (status & 0x8) >> 3;
-	if ((_idcode == 0x0001281B) && auto_boot_2nd_fail)
-	{
-		disableCfg();
+	// This is required on GW5A-25 or GW5AST-138 when timeout bit
+	// is set
+	bool auto_boot_2nd_fail = (status & (1 << 4)) == (1 << 4);
+	bool is_timeout = (status & (1 << 3)) == (1 << 3);
+	bool bad_cmd = (status & STATUS_BAD_COMMAND) == STATUS_BAD_COMMAND;
+	uint8_t loop = 0;
+	bool must_loop = is_gw5a;
+	if (is_gw5a && (is_timeout || auto_boot_2nd_fail || bad_cmd)) {
+		send_command(CONFIG_ENABLE);
 		send_command(0x3F);
+		send_command(CONFIG_DISABLE);
 		send_command(NOOP);
+		send_command(READ_IDCODE);
+		send_command(NOOP);
+		_jtag->toggleClk(125 * 8);
+	} else if (is_gw2a) {
+		gw2a_force_state();
 	}
 
-	if (!enableCfg()) {
-		printError("FAIL");
-		return false;
-	}
-	send_command(ERASE_SRAM);
-	send_command(NOOP);
+	do {
 
-	/* TN653 specifies to wait for 4ms with
-	 * clock generated but
-	 * status register bit MEMORY_ERASE goes low when ERASE_SRAM
-	 * is send and goes high after erase
-	 * this check seems enough
-	 */
-	if (_idcode == 0x0001081b) // seems required for GW5AST...
-		sendClkUs(10000);
-	if (pollFlag(STATUS_MEMORY_ERASE, STATUS_MEMORY_ERASE)) {
-		if (_verbose)
-			displayReadReg("after erase sram", readStatusReg());
-	} else {
-		printError("FAIL");
-		return false;
-	}
+		if (!enableCfg()) {
+			printError("FAIL");
+			return false;
+		}
+		send_command(ERASE_SRAM);
+		send_command(NOOP);
 
-	send_command(XFER_DONE);
-	send_command(NOOP);
-	if (!disableCfg()) {
-		printError("FAIL");
-		return false;
-	}
+		/* TN653 specifies to wait for 4ms with
+		 * clock generated but
+		 * status register bit MEMORY_ERASE goes low when ERASE_SRAM
+		 * is send and goes high after erase
+		 * this check seems enough
+		 */
+		if (_idcode == 0x0001081b) // seems required for GW5AST...
+			sendClkUs(10000);
+		if (pollFlag(STATUS_MEMORY_ERASE, STATUS_MEMORY_ERASE)) {
+			if (_verbose)
+				displayReadReg("after erase sram", readStatusReg());
+		} else {
+			printError("FAIL");
+			return false;
+		}
+
+		send_command(XFER_DONE);
+		send_command(NOOP);
+		if (!disableCfg()) {
+			printError("FAIL");
+			return false;
+		}
+		if (is_gw5a) {
+			uint32_t status_reg = readStatusReg();
+			if ((loop >= 1) && ((status_reg & (1 << 13)) == 0))
+				must_loop = false;
+			loop++;
+		}
+
+	} while(must_loop);
 
 	if (_mode == Device::FLASH_MODE) {
 		uint32_t status_reg = readStatusReg();
@@ -1153,18 +1192,46 @@ bool Gowin::dumpFlash(uint32_t base_addr, uint32_t len)
 	return post_flash_access() && ret;
 }
 
+void Gowin::gw2a_force_state()
+{
+	/* undocumented sequence but required when
+	 * flash failure
+	 */
+	uint32_t state = readStatusReg();
+	if ((state & STATUS_CRC_ERROR) == 0)
+		return;
+	send_command(CONFIG_DISABLE);
+	send_command(0);
+	idCode();
+	state = readStatusReg();
+	send_command(CONFIG_DISABLE);
+	send_command(0);
+	state = readStatusReg();
+	idCode();
+	send_command(CONFIG_ENABLE);
+	reset();
+	send_command(CONFIG_DISABLE);
+	send_command(NOOP);
+	idCode();
+	send_command(NOOP);
+	idCode();
+}
+
 bool Gowin::prepare_flash_access()
 {
+	/* Work around FPGA stuck in Bad Command status */
+	if (is_gw5a) {
+		reset();
+		_jtag->set_state(Jtag::RUN_TEST_IDLE);
+		_jtag->toggleClk(1000000);
+	}
+
 	if (!eraseSRAM()) {
 		printError("Error: fail to erase SRAM");
 		return false;
 	}
 
 	if (is_gw5a) {
-		if (!eraseSRAM()) {
-			printError("Error: fail to erase SRAM");
-			return false;
-		}
 		usleep(100000);
 		if (!gw5a_enable_spi()) {
 			printError("Error: fail to switch GW5A to SPI mode");

@@ -45,16 +45,16 @@ void Ice40::reset()
 	_spi->gpio_clear(_rst_pin);
 	usleep(1000);
 	_spi->gpio_set(_rst_pin);
-	printInfo("Reset ", false);
 	usleep(12000);
+	printInfo("Reset and Wait for CDONE:");
 	do {
 		timeout--;
 		usleep(12000);
 	} while (((_spi->gpio_get(true) & _done_pin) == 0) && timeout > 0);
 	if (timeout == 0)
-		printError("FAIL");
+		printError("Fail");
 	else
-		printSuccess("DONE");
+		printSuccess("Done");
 }
 
 /* cf. TN1248 (iCE40 Programming and Configuration)
@@ -77,7 +77,7 @@ bool Ice40::program_cram(const uint8_t *data, uint32_t length)
 
 	/* load configuration data MSB first
 	 */
-	ProgressBar progress("Loading to CRAM", length, 50, _verbose);
+	ProgressBar progress("Loading to CRAM", length, 50, _quiet);
 	const uint8_t *ptr = data;
 	int size = 0;
 	for (uint32_t addr = 0; addr < length; addr += size, ptr+=size) {
@@ -96,25 +96,23 @@ bool Ice40::program_cram(const uint8_t *data, uint32_t length)
 	/* wait CDONE */
 	usleep(12000);
 
-	printInfo("Wait for CDONE ", false);
+	printInfo("Wait for CDONE");
 	do {
 		timeout--;
 		usleep(12000);
 	} while (((_spi->gpio_get(true) & _done_pin) == 0) && timeout > 0);
 	if (timeout == 0)
-		printError("FAIL");
+		printError("Fail");
 	else
-		printSuccess("DONE");
+		printSuccess("Done");
 
 	_spi->setCs();
 
-	return true;
+	return (timeout == 0) ? false : true;
 }
 
 void Ice40::program(unsigned int offset, bool unprotect_flash)
 {
-	uint32_t timeout = 1000;
-
 	if (_file_extension.empty())
 		return;
 
@@ -139,38 +137,24 @@ void Ice40::program(unsigned int offset, bool unprotect_flash)
 	_spi->gpio_clear(_rst_pin);
 
 	SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), unprotect_flash,
-			_quiet);
+			_verbose_level);
 
-	printf("%02x\n", flash.read_status_reg());
-	flash.read_id();
 	flash.erase_and_prog(offset, data, length);
 
 	if (_verify)
 		flash.verify(offset, data, length);
 
-	_spi->gpio_set(_rst_pin);
-	usleep(12000);
-
-	printInfo("Wait for CDONE ", false);
-	do {
-		timeout--;
-		usleep(12000);
-	} while (((_spi->gpio_get(true) & _done_pin) == 0) && timeout > 0);
-	if (timeout == 0)
-		printError("FAIL");
-	else
-		printSuccess("DONE");
+	/* release SPI access / reload */
+	post_flash_access();
 }
 
 bool Ice40::dumpFlash(uint32_t base_addr, uint32_t len)
 {
-	uint32_t timeout = 1000;
-	_spi->gpio_clear(_rst_pin);
-
 	/* prepare SPI access */
+	prepare_flash_access();
 	printInfo("Read Flash ", false);
 	try {
-		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose);
+		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose_level);
 		flash.reset();
 		flash.power_up();
 		flash.dump(_filename, base_addr, len);
@@ -180,22 +164,8 @@ bool Ice40::dumpFlash(uint32_t base_addr, uint32_t len)
 		return false;
 	}
 
-	/* release SPI access */
-
-	_spi->gpio_set(_rst_pin);
-	usleep(12000);
-
-	printInfo("Wait for CDONE ", false);
-	do {
-		timeout--;
-		usleep(12000);
-	} while (((_spi->gpio_get(true) & _done_pin) == 0) && timeout > 0);
-	if (timeout == 0)
-		printError("FAIL");
-	else
-		printSuccess("DONE");
-
-	return false;
+	/* release SPI access / reload */
+	return post_flash_access();
 }
 
 bool Ice40::protect_flash(uint32_t len)
@@ -204,7 +174,7 @@ bool Ice40::protect_flash(uint32_t len)
 	prepare_flash_access();
 	/* acess */
 	try {
-		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose);
+		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose_level);
 		/* configure flash protection */
 		if (flash.enable_protection(len) == -1)
 			return false;
@@ -224,7 +194,7 @@ bool Ice40::unprotect_flash()
 	prepare_flash_access();
 	/* acess */
 	try {
-		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose);
+		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose_level);
 		/* configure flash protection */
 		if (flash.disable_protection() == -1)
 			return false;
@@ -244,7 +214,7 @@ bool Ice40::bulk_erase_flash()
 	prepare_flash_access();
 	/* acess */
 	try {
-		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose);
+		SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), false, _verbose_level);
 		/* bulk erase flash */
 		if (flash.bulk_erase() == -1)
 			return false;

@@ -1,9 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
 # set the project name
-project(openFPGALoader VERSION "0.12.1" LANGUAGES CXX)
+project(openFPGALoader VERSION "0.13.1" LANGUAGES CXX)
 add_definitions(-DVERSION=\"v${PROJECT_VERSION}\")
-
 option(ENABLE_OPTIM "Enable build with -O3 optimization level" ON)
 option(BUILD_STATIC "Whether or not to build with static libraries" OFF)
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -29,7 +28,7 @@ set(ISE_PATH "/opt/Xilinx/14.7" CACHE STRING "ise root directory (default: /opt/
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -Wextra ${CMAKE_CXX_FLAGS_DEBUG}")
-if (ENABLE_OPTIM)
+if(ENABLE_OPTIM AND NOT(CMAKE_BUILD_TYPE STREQUAL "Debug"))
 	set(CMAKE_CXX_FLAGS "-O3 ${CMAKE_CXX_FLAGS}")
 endif()
 
@@ -101,7 +100,6 @@ set(OPENFPGALOADER_SOURCE
 	src/efinix.cpp
 	src/efinixHexParser.cpp
 	src/fx2_ll.cpp
-	src/ice40.cpp
 	src/ihexParser.cpp
 	src/pofParser.cpp
 	src/rawParser.cpp
@@ -110,8 +108,6 @@ set(OPENFPGALOADER_SOURCE
 	src/usbBlaster.cpp
 	src/epcq.cpp
 	src/svf_jtag.cpp
-	src/jedParser.cpp
-	src/feaparser.cpp
 	src/display.cpp
 	src/jtag.cpp
 	src/ftdiJtagBitbang.cpp
@@ -119,12 +115,10 @@ set(OPENFPGALOADER_SOURCE
 	src/configBitstreamParser.cpp
 	src/ftdipp_mpsse.cpp
 	src/main.cpp
-	src/latticeBitParser.cpp
 	src/libusb_ll.cpp
 	src/gowin.cpp
 	src/device.cpp
 	src/jlink.cpp
-	src/lattice.cpp
 	src/progressBar.cpp
 	src/fsparser.cpp
 	src/mcsParser.cpp
@@ -135,6 +129,7 @@ set(OPENFPGALOADER_SOURCE
 	src/xilinxMapParser.cpp
 	src/colognechip.cpp
 	src/colognechipCfgParser.cpp
+	src/esp_usb_jtag.cpp
 )
 
 set(OPENFPGALOADER_HEADERS
@@ -152,7 +147,6 @@ set(OPENFPGALOADER_HEADERS
 	src/efinix.hpp
 	src/efinixHexParser.hpp
 	src/fx2_ll.hpp
-	src/ice40.hpp
 	src/ihexParser.hpp
 	src/pofParser.hpp
 	src/progressBar.hpp
@@ -168,8 +162,6 @@ set(OPENFPGALOADER_HEADERS
 	src/fsparser.hpp
 	src/part.hpp
 	src/board.hpp
-	src/jedParser.hpp
-	src/feaparser.hpp
 	src/display.hpp
 	src/mcsParser.hpp
 	src/ftdipp_mpsse.hpp
@@ -183,12 +175,30 @@ set(OPENFPGALOADER_HEADERS
 	src/gowin.hpp
 	src/cable.hpp
 	src/ftdispi.hpp
-	src/lattice.hpp
-	src/latticeBitParser.hpp
 	src/xilinx.hpp
 	src/xilinxMapParser.hpp
 	src/colognechip.hpp
 	src/colognechipCfgParser.hpp
+	src/esp_usb_jtag.hpp
+)
+
+# Lattice Drivers / Files parsers.
+list(APPEND OPENFPGALOADER_SOURCE
+	src/ice40.cpp
+	src/lattice.cpp
+	src/latticeSSPI.cpp
+	src/feaparser.cpp
+	src/jedParser.cpp
+	src/latticeBitParser.cpp
+)
+
+list(APPEND OPENFPGALOADER_HEADERS
+	src/ice40.hpp
+	src/lattice.hpp
+	src/latticeSSPI.hpp
+	src/jedParser.hpp
+	src/feaparser.hpp
+	src/latticeBitParser.hpp
 )
 
 link_directories(

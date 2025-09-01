@@ -18,6 +18,7 @@
 #include "board.hpp"
 #include "cable.hpp"
 #include "colognechip.hpp"
+#include "common.hpp"
 #include "cxxopts.hpp"
 #include "device.hpp"
 #include "dfu.hpp"
@@ -27,6 +28,7 @@
 #include "gowin.hpp"
 #include "ice40.hpp"
 #include "lattice.hpp"
+#include "latticeSSPI.hpp"
 #include "libusb_ll.hpp"
 #include "jtag.hpp"
 #include "part.hpp"
@@ -97,6 +99,7 @@ struct arguments {
 	bool read_dna;
 	bool read_xadc;
 	string read_register;
+	string user_flash;
 };
 
 int run_xvc_server(const struct arguments &args, const cable_t &cable,
@@ -111,7 +114,7 @@ int main(int argc, char **argv)
 {
 	cable_t cable;
 	target_board_t *board = NULL;
-	jtag_pins_conf_t pins_config = {0, 0, 0, 0};
+	jtag_pins_conf_t pins_config = {0, 0, 0, 0, 0, 0};
 
 	/* command line args. */
 	struct arguments args = {0,
@@ -129,7 +132,8 @@ int main(int argc, char **argv)
 			/* xvc server */
 			false, 3721, "-",
 			"", false, {},  // mcufw conmcu, user_misc_dev_list
-			false, false, "" // read_dna, read_xadc, read_register
+			false, false, "", // read_dna, read_xadc, read_register
+			"" // user_flash
 	};
 	/* parse arguments */
 	try {
@@ -261,12 +265,22 @@ int main(int argc, char **argv)
 			args.prg_type = Device::WR_FLASH;
 
 		FtdiSpi *spi = NULL;
-		spi_pins_conf_t pins_config;
-		if (board)
-			pins_config = board->spi_pins_config;
+		spi_pins_conf_t spi_pins_config;
+		if (board && !args.pin_config)
+			spi_pins_config = board->spi_pins_config;
+		if (args.pin_config) {
+			printInfo("Board default pins configuration overridden");
+			spi_pins_config.cs_pin = (1 << pins_config.tms_pin);
+			spi_pins_config.sck_pin = (1 << pins_config.tck_pin);
+			spi_pins_config.mosi_pin = (1 << pins_config.tdi_pin);
+			spi_pins_config.miso_pin = (1 << pins_config.tdo_pin);
+			spi_pins_config.miso_pin = (1 << pins_config.tdo_pin);
+			spi_pins_config.holdn_pin = (1 << pins_config.ext0_pin);
+			spi_pins_config.wpn_pin = (1 << pins_config.ext1_pin);
+		}
 
 		try {
-			spi = new FtdiSpi(cable, pins_config, args.freq, args.verbose);
+			spi = new FtdiSpi(cable, spi_pins_config, args.freq, args.verbose);
 		} catch (std::exception &e) {
 			printError("Error: Failed to claim cable");
 			return EXIT_FAILURE;
@@ -281,9 +295,17 @@ int main(int argc, char **argv)
 					board->reset_pin, board->done_pin, board->oe_pin,
 					args.verify, args.verbose);
 			} else if (board->manufacturer == "lattice") {
-				target = new Ice40(spi, args.bit_file, args.file_type,
-					args.prg_type,
-					board->reset_pin, board->done_pin, args.verify, args.verbose);
+				if (board->fpga_part == "ice40") {
+					target = new Ice40(spi, args.bit_file, args.file_type,
+						args.prg_type,
+						board->reset_pin, board->done_pin, args.verify, args.verbose);
+				} else if (board->fpga_part == "ecp5") {
+					target = new LatticeSSPI(spi, args.bit_file, args.file_type, args.verbose);
+				} else {
+					printError("Error (SPI mode): " + board->fpga_part +
+						" is an unsupported/unknown Lattice Model");
+					return EXIT_FAILURE;
+				}
 			} else if (board->manufacturer == "colognechip") {
 				target = new CologneChip(spi, args.bit_file, args.file_type, args.prg_type,
 					board->reset_pin, board->done_pin, DBUS6, board->oe_pin,
@@ -302,7 +324,10 @@ int main(int argc, char **argv)
 			} else if ((args.prg_type == Device::WR_FLASH ||
 						args.prg_type == Device::WR_SRAM) ||
 						!args.bit_file.empty() || !args.file_type.empty()) {
-				target->program(args.offset, args.unprotect_flash);
+				if (args.detect_flash)
+					target->detect_flash();
+				else
+					target->program(args.offset, args.unprotect_flash);
 			}
 			if (args.unprotect_flash && args.bit_file.empty())
 				if (!target->unprotect_flash())
@@ -355,7 +380,10 @@ int main(int argc, char **argv)
 
 				delete bit;
 			} else if (args.prg_type == Device::RD_FLASH) {
-				flash.dump(args.bit_file, args.offset, args.file_size);
+				if (args.file_size == 0)
+					printError("Error: 0 size for dump");
+				else
+					flash.dump(args.bit_file, args.offset, args.file_size);
 			}
 
 			if (args.unprotect_flash && args.bit_file.empty())
@@ -572,7 +600,7 @@ int main(int argc, char **argv)
 		} else if (fab == "altera") {
 			fpga = new Altera(jtag, args.bit_file, args.file_type,
 				args.prg_type, args.fpga_part, args.bridge_path, args.verify,
-				args.verbose, args.skip_load_bridge, args.skip_reset);
+				args.verbose, args.flash_sector, args.skip_load_bridge, args.skip_reset);
 		} else if (fab == "anlogic") {
 			fpga = new Anlogic(jtag, args.bit_file, args.file_type,
 				args.prg_type, args.verify, args.verbose);
@@ -582,7 +610,7 @@ int main(int argc, char **argv)
 				args.verify, args.verbose);
 		} else if (fab == "Gowin") {
 			fpga = new Gowin(jtag, args.bit_file, args.file_type, args.mcufw,
-				args.prg_type, args.external_flash, args.verify, args.verbose);
+				args.prg_type, args.external_flash, args.verify, args.verbose, args.user_flash);
 		} else if (fab == "lattice") {
 			fpga = new Lattice(jtag, args.bit_file, args.file_type,
 				args.prg_type, args.flash_sector, args.verify, args.verbose, args.skip_load_bridge, args.skip_reset);
@@ -806,7 +834,7 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 			("file-type",
 				"provides file type instead of let's deduced by using extension",
 				cxxopts::value<string>(args->file_type))
-			("flash-sector", "flash sector (Lattice parts only)",
+			("flash-sector", "flash sector (Lattice and Altera MAX10 parts only)",
 				cxxopts::value<string>(args->flash_sector))
 			("fpga-part",   "fpga model flavor + package",
 				cxxopts::value<string>(args->fpga_part))
@@ -829,7 +857,7 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 				"write bitstream in SRAM (default: true)")
 			("o,offset", "Start address (in bytes) for read/write into non volatile memory (default: 0)",
 				cxxopts::value<unsigned int>(args->offset))
-			("pins", "pin config TDI:TDO:TCK:TMS",
+			("pins", "pin config TDI:TDO:TCK:TMS or MOSI:MISO:SCK:CS[:HOLDN:WPN]",
 				cxxopts::value<vector<string>>(pins))
 			("probe-firmware", "firmware for JTAG probe (usbBlasterII)",
 				cxxopts::value<string>(args->probe_firmware))
@@ -871,6 +899,8 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 				cxxopts::value<bool>(args->read_xadc))
 			("read-register", "Read Status Register(Xilinx FPGA only)",
 				cxxopts::value<string>(rd_reg))
+			("user-flash", "User flash file (Gowin LittleBee FPGA only)",
+				cxxopts::value<string>(args->user_flash))
 			("V,Version", "Print program version");
 
 		options.parse_positional({"bitstream"});
@@ -989,8 +1019,8 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 		}
 
 		if (result.count("pins")) {
-			if (pins.size() != 4) {
-				printError("Error: pin_config need 4 pins");
+			if (pins.size() < 4 || pins.size() > 6) {
+				printError("Error: pin_config need 4 pins in JTAG mode or 6 pins in SPI Mode");
 				throw std::exception();
 			}
 
@@ -1004,7 +1034,7 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 				{"DCD", FT232RL_DCD},
 				{"RI" , FT232RL_RI}};
 
-			for (int i = 0; i < 4; i++) {
+			for (size_t i = 0; i < pins.size(); i++) {
 				int pin_num;
 				try {
 					pin_num = std::stoi(pins[i], nullptr, 0);
@@ -1029,6 +1059,12 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 					case 3:
 						pins_config->tms_pin = pin_num;
 						break;
+					case 4:
+						pins_config->ext0_pin = pin_num;
+						break;
+					case 5:
+						pins_config->ext1_pin = pin_num;
+						break;
 				}
 			}
 			args->pin_config = true;
@@ -1039,7 +1075,8 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 				 args->secondary_bit_file.empty() &&
 				 !args->protect_flash &&
 				 !args->unprotect_flash &&
-				 !args->bulk_erase_flash
+				 !args->bulk_erase_flash &&
+				 !args->detect
 				) {
 				printError("Error: secondary bitfile not specified");
 				cout << options.help() << endl;
@@ -1120,12 +1157,20 @@ void displaySupported(const struct arguments &args)
 
 	if (args.list_boards) {
 		stringstream t;
-		t << setw(25) << left << "board name" << "cable_name";
+		t << setw(26) << left << "board name" << setw(19) << "cable_name";
+		t << setw(25) << "fpga_part";
 		printSuccess(t.str());
 		for (auto b = board_list.begin(); b != board_list.end(); b++) {
 			stringstream ss;
 			target_board_t c = (*b).second;
-			ss << setw(25) << left << (*b).first << c.cable_name;
+			std::string cable_name = c.cable_name;
+			std::string fpga_part = c.fpga_part;
+			if (cable_name.size() == 0)
+				cable_name = "Undefined";
+			if (fpga_part.size() == 0)
+				fpga_part = "Undefined";
+			ss << setw(26) << left << (*b).first << setw(19) << cable_name;
+			ss << setw(25)<< fpga_part;
 			printInfo(ss.str());
 		}
 		cout << endl;

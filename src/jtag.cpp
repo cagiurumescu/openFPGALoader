@@ -32,6 +32,7 @@
 #include "cmsisDAP.hpp"
 #endif
 #include "dirtyJtag.hpp"
+#include "esp_usb_jtag.hpp"
 #include "ch347jtag.hpp"
 #include "part.hpp"
 #ifdef ENABLE_REMOTEBITBANG
@@ -121,6 +122,9 @@ Jtag::Jtag(const cable_t &cable, const jtag_pins_conf_t *pin_conf,
 #endif
 	case MODE_JLINK:
 		_jtag = new Jlink(clkHZ, verbose, cable.vid, cable.pid);
+		break;
+	case MODE_ESP:
+		_jtag = new esp_usb_jtag(clkHZ, verbose, 0x303a, 0x1001);
 		break;
 	case MODE_USBBLASTER:
 		_jtag = new UsbBlaster(cable, firmware_path, verbose);
@@ -367,11 +371,11 @@ int Jtag::read_write(const uint8_t *tdi, unsigned char *tdo, int len, char last)
 	return 0;
 }
 
-void Jtag::toggleClk(int nb)
+void Jtag::toggleClk(int nb, uint8_t tdi)
 {
 	unsigned char c = (TEST_LOGIC_RESET == _state) ? 1 : 0;
 	flushTMS(false);
-	if (_jtag->toggleClk(c, 0, nb) >= 0)
+	if (_jtag->toggleClk(c, tdi, nb) >= 0)
 		return;
 	throw std::exception();
 	return;

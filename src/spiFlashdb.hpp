@@ -28,12 +28,13 @@ typedef struct {
 	bool subsector_erase;     /**< 4KB erase support */
 	bool has_extended;
 	bool tb_otp;              /**< TOP/BOTTOM One Time Programming */
-	uint8_t tb_offset;        /**< TOP/BOTTOM bit offset */
+	uint16_t tb_offset;       /**< TOP/BOTTOM bit offset */
 	tb_loc_t tb_register;     /**< TOP/BOTTOM location (register) */
 	uint8_t bp_len;           /**< BPx length */
 	uint8_t bp_offset[4];     /**< BP[0:3] bit offset */
 	tb_loc_t quad_register;   /**< TOP/BOTTOM bit offset */
 	uint16_t quad_mask;       /** Quad Enable bit offset */
+	bool global_lock;         /** Global lock/unlock bit */
 } flash_t;
 
 static std::map <uint32_t, flash_t> flash_list = {
@@ -51,6 +52,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x010219, {
 		/* https://www.mouser.fr/datasheet/2/196/Infineon_S25FL128SS25FL256S_128_Mb__16_MB_256_Mb__-3363490.pdf */
@@ -67,6 +69,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = CONFR,
 		.quad_mask = (1 << 1),
+		.global_lock = false,
 	}},
 	{0x010220, {
 		.manufacturer = "spansion",
@@ -82,6 +85,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x012018, {
 		.manufacturer = "spansion",
@@ -97,6 +101,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = CONFR,
 		.quad_mask = (1 << 1),
+		.global_lock = false,
 	}},
 	{0x016018, {
 		/* https://www.infineon.com/dgdl/Infineon-S25FL128L_S25FL256L_128_Mb_16_MB_256_Mb_32_MB_FL-L_flash_SPI_multi-I_O_3-DataSheet-v13_00-EN.pdf?fileId=8ac78c8c7d0d8da4017d0ed40e335224 */
@@ -113,6 +118,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x016019, {
 		.manufacturer = "spansion",
@@ -128,6 +134,24 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
+	}},
+	{0x0b4016, {
+		/* https://datasheet.lcsc.com/lcsc/2005251035_XTX-XT25F32BSOIGU-S_C558851.pdf */
+		.manufacturer = "XTX",
+		.model = "XT25F32B-S",
+		.nr_sector = 1024,
+		.sector_erase = true,
+		.subsector_erase = true,
+		.has_extended = false,
+		.tb_otp = false,
+		.tb_offset = (1 << 14),
+		.tb_register = STATR,
+		.bp_len = 4,
+		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
+		.quad_register = NONER,
+		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x202014, {
 		/* https://pdf1.alldatasheet.com/datasheet-pdf/download/22807/STMICROELECTRONICS/M25P80.html */
@@ -144,6 +168,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x202015, {
 		/* https://datasheet.octopart.com/M25P16-VME6G-STMicroelectronics-datasheet-7623188.pdf */
@@ -160,6 +185,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x202016, {
 		/* https://pdf1.alldatasheet.com/datasheet-pdf/download/104949/STMICROELECTRONICS/M25P32.html */
@@ -176,6 +202,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x20ba16, {
 		/* https://www.digikey.co.uk/htmldatasheets/production/1283198/0/0/1/N25Q032A-32Mb-1-8V.pdf */
@@ -190,8 +217,13 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.tb_register = STATR,
 		.bp_len = 3,
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
-		.quad_register = NVCONFR,
-		.quad_mask = (1 << 3),
+		// Disabled because the chip is unable to work in single after being confgured in quad
+		// this option isn't required and the chip is always able to uses quad mode instructions
+		.quad_register = NONER,
+		.quad_mask = 0,
+		//.quad_register = NVCONFR,
+		//.quad_mask = (1 << 3),
+		.global_lock = false,
 	}},
 	{0x20ba17, {
 		.manufacturer = "micron",
@@ -205,8 +237,13 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.tb_register = STATR,
 		.bp_len = 4,
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
-		.quad_register = NVCONFR,
-		.quad_mask = (1 << 3),
+		// Disabled because the chip is unable to work in single after being confgured in quad
+		// this option isn't required and the chip is always able to uses quad mode instructions
+		.quad_register = NONER,
+		.quad_mask = 0,
+		//.quad_register = NVCONFR,
+		//.quad_mask = (1 << 3),
+		.global_lock = false,
 	}},
 	{0x20ba18, {
 		/* https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/nor-flash/serial-nor/n25q/n25q_128mb_3v_65nm.pdf */
@@ -221,8 +258,13 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.tb_register = STATR,
 		.bp_len = 4,
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
-		.quad_register = NVCONFR,
-		.quad_mask = (1 << 3),
+		// Disabled because the chip is unable to work in single after being confgured in quad
+		// this option isn't required and the chip is always able to uses quad mode instructions
+		.quad_register = NONER,
+		.quad_mask = 0,
+		//.quad_register = NVCONFR,
+		//.quad_mask = (1 << 3),
+		.global_lock = false,
 	}},
 	{0x20ba19, {
 		/* https://datasheet.octopart.com/N25Q256A13E1241F-Micron-datasheet-11552757.pdf */
@@ -237,8 +279,13 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.tb_register = STATR,
 		.bp_len = 4,
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
-		.quad_register = NVCONFR,
-		.quad_mask = (1 << 3),
+		// Disabled because the chip is unable to work in single after being confgured in quad
+		// this option isn't required and the chip is always able to uses quad mode instructions
+		.quad_register = NONER,
+		.quad_mask = 0,
+		//.quad_register = NVCONFR,
+		//.quad_mask = (1 << 3),
+		.global_lock = false,
 	}},
 	{0x20bb18, {
 		/* https://www.micron.com/-/media/client/global/documents/products/data-sheet/nor-flash/serial-nor/n25q/n25q_128mb_1_8v_65nm.pdf */
@@ -257,6 +304,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x20bb19, {
 		.manufacturer = "micron",
@@ -272,6 +320,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x20bb21, {
 		.manufacturer = "micron",
@@ -287,6 +336,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x20bb22, {
 		.manufacturer = "micron",
@@ -302,6 +352,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x9d6016, {
 		.manufacturer = "ISSI",
@@ -317,6 +368,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x9d6017, {
 		.manufacturer = "ISSI",
@@ -332,6 +384,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x9d6018, {
 		.manufacturer = "ISSI",
@@ -347,6 +400,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0x9d6019, {
 		/* https://www.issi.com/WW/pdf/IS25LP(WP)256D.pdf */
@@ -363,6 +417,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xba6015, {
 		.manufacturer = "Zetta",
@@ -378,6 +433,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xbf258d, {
 		.manufacturer = "microchip",
@@ -393,6 +449,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xbf2642, {
 		.manufacturer = "microchip",
@@ -408,6 +465,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {0, 0, 0, 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = true,
 	}},
 	{0xbf2643, {
 		.manufacturer = "microchip",
@@ -423,6 +481,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {0, 0, 0, 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = true,
 	}},
 	{0xc22016, {
 		/* https://www.macronix.com/Lists/Datasheet/Attachments/8933/MX25L3233F,%203V,%2032Mb,%20v1.7.pdf */
@@ -439,6 +498,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = STATR,
 		.quad_mask = (1 << 6),
+		.global_lock = false,
 	}},
 	{0xc22018, {
 		/* https://www.macronix.com/Lists/Datasheet/Attachments/8934/MX25L12833F,%203V,%20128Mb,%20v1.0.pdf */
@@ -455,6 +515,24 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = STATR,
 		.quad_mask = (1 << 6),
+		.global_lock = false,
+	}},
+	{0xc22019, {
+		/* https://www.mxic.com.tw/Lists/Datasheet/Attachments/8906/MX25L25645G,%203V,%20256Mb,%20v2.0.pdf */
+		.manufacturer = "Macronix",
+		.model = "MX25L25645G",
+		.nr_sector = 512,
+		.sector_erase = true,
+		.subsector_erase = true,
+		.has_extended = false,
+		.tb_otp = true,
+		.tb_offset = (1 << 3),
+		.tb_register = CONFR,
+		.bp_len = 5,
+		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
+		.quad_register = STATR,
+		.quad_mask = (1 << 6),
+		.global_lock = false,
 	}},
 	{0xc2201a, {
 		/* https://www.macronix.com/Lists/Datasheet/Attachments/8745/MX25L51245G,%203V,%20512Mb,%20v1.7.pdf */
@@ -471,6 +549,24 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = STATR,
 		.quad_mask = (1 << 6),
+		.global_lock = false,
+	}},	
+	{0xc22537, {
+		/* https://www.macronix.com/Lists/Datasheet/Attachments/8904/MX25U6432F,%201.8V,%2064Mb,%20v1.1.pdf */
+		.manufacturer = "Macronix",
+		.model = "MX25U6432F",
+		.nr_sector = 128,
+		.sector_erase = true,
+		.subsector_erase = true,
+		.has_extended = false,
+		.tb_otp = true,
+		.tb_offset = (1 << 3),
+		.tb_register = CONFR,
+		.bp_len = 4,
+		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
+		.quad_register = STATR,
+		.quad_mask = (1 << 6),
+		.global_lock = false,
 	}},
 	{0xc22817, {
 		/* https://www.macronix.com/Lists/Datasheet/Attachments/8868/MX25R6435F,%20Wide%20Range,%2064Mb,%20v1.6.pdf */
@@ -487,6 +583,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 5)},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xef4014, {
 		/* https://cdn-shop.adafruit.com/datasheets/W25Q80BV.pdf */
@@ -503,6 +600,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xef4015, {
 		.manufacturer = "Winbond",
@@ -518,6 +616,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xef4016, {
 		.manufacturer = "Winbond",
@@ -533,6 +632,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xef4017, {
 		.manufacturer = "Winbond",
@@ -548,6 +648,7 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
 	}},
 	{0xef4018, {
 		.manufacturer = "Winbond",
@@ -563,6 +664,71 @@ static std::map <uint32_t, flash_t> flash_list = {
 		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), 0},
 		.quad_register = NONER,
 		.quad_mask = 0,
+		.global_lock = false,
+	}},
+	{0x6bbb14, {
+		.manufacturer = "Everspin",
+		.model = "EM008LX",
+		.nr_sector = 16,
+		.sector_erase = true,
+		.subsector_erase = true,
+		.has_extended = true,
+		.tb_otp = false,
+		.tb_offset = (1 << 5),
+		.tb_register = STATR,
+		.bp_len = 4,
+		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
+		.quad_register = NONER,
+		.quad_mask = 0,
+		.global_lock = false,
+	}},
+	{0x6bbb15, {
+		.manufacturer = "Everspin",
+		.model = "EM016LX",
+		.nr_sector = 32,
+		.sector_erase = true,
+		.subsector_erase = true,
+		.has_extended = true,
+		.tb_otp = false,
+		.tb_offset = (1 << 5),
+		.tb_register = STATR,
+		.bp_len = 4,
+		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
+		.quad_register = NONER,
+		.quad_mask = 0,
+		.global_lock = false,
+	}},
+	{0x6bbb16, {
+		.manufacturer = "Everspin",
+		.model = "EM032LX",
+		.nr_sector = 64,
+		.sector_erase = true,
+		.subsector_erase = true,
+		.has_extended = true,
+		.tb_otp = false,
+		.tb_offset = (1 << 5),
+		.tb_register = STATR,
+		.bp_len = 4,
+		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
+		.quad_register = NONER,
+		.quad_mask = 0,
+		.global_lock = false,
+	}},
+	{0x6bbb17, {
+		.manufacturer = "Everspin",
+		.model = "EM064LX",
+		.nr_sector = 128,
+		.sector_erase = true,
+		.subsector_erase = true,
+		.has_extended = true,
+		.tb_otp = false,
+		.tb_offset = (1 << 5),
+		.tb_register = STATR,
+		.bp_len = 4,
+		.bp_offset = {(1 << 2), (1 << 3), (1 << 4), (1 << 6)},
+		.quad_register = NONER,
+		.quad_mask = 0,
+		.global_lock = false,
 	}},
 
 };

@@ -24,6 +24,7 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	/**************************************************************************/
 
 	/* Anlogic Eagle */
+	{0x04014c35, {"anlogic", "eagle d20", "EG4D20EG176", 8}},
 	{0x0a014c35, {"anlogic", "eagle s20", "EG4S20BG256", 8}},
 
 	/* Anlogic Elf2 */
@@ -70,11 +71,13 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x03620093, {"xilinx", "spartan7", "xc7s15ftgb196-1", 6}},
 	{0x037c4093, {"xilinx", "spartan7", "xc7s25",          6}},
 	{0x0362f093, {"xilinx", "spartan7", "xc7s50",          6}},
+	{0x037c8093, {"xilinx", "spartan7", "xc7s75",          6}},
 
 	/* Xilinx Virtex6 */
 	{0x8424a093, {"xilinx", "virtex6", "xc6vlx130t", 10}},
 
 	/* Xilinx 7-Series / Artix7 */
+	{0x0362e093, {"xilinx", "artix a7 15t",  "xc7a15",  6}},
 	{0x037c2093, {"xilinx", "artix a7 25t",  "xc7a25",  6}},
 	{0x0362D093, {"xilinx", "artix a7 35t",  "xc7a35",  6}},
 	{0x0362c093, {"xilinx", "artix a7 50t",  "xc7a50t", 6}},
@@ -88,6 +91,7 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x03651093, {"xilinx", "kintex7", "xc7k325t", 6}},
 	{0x03656093, {"xilinx", "kintex7", "xc7k410t", 6}},
 	{0x23752093, {"xilinx", "kintex7", "xc7k420t", 6}},
+	{0x23751093, {"xilinx", "kintex7", "xc7k480t", 6}},
 
 	/* Xilinx 7-Series / Virtex7 */
 	{0x03667093, {"xilinx", "virtex7", "xc7vx330t",  6}},
@@ -178,14 +182,14 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	/**************************************************************************/
 
 	/* Altera Max II*/
-        {0x020a10dd, {"altera", "max II", "EPM240T100C5N", 10}},
+	{0x020a10dd, {"altera", "max II", "EPM240T100C5N", 10}},
 
 	/* Altera Cyclone II/III/IV/10 LP */
-        {0x020b10dd, {"altera", "cyclone II", "EP2C5", 10}},
+	{0x020b10dd, {"altera", "cyclone II",           "EP2C5",                    10}},
 	{0x020f10dd, {"altera", "cyclone III/IV/10 LP", "EP4CE6/EP4CE10",           10}},
 	{0x020f20dd, {"altera", "cyclone III/IV/10 LP", "EP3C16/EP4CE15/10CL016",   10}},
 	{0x020f70dd, {"altera", "cyclone III/IV/10 LP", "EP3C120/EP4CE115/10CL120", 10}},
-	{0x028040dd, {"altera", "cyclone IV GX", "EP4CGX150", 10}},
+	{0x028040dd, {"altera", "cyclone IV GX",        "EP4CGX150",                10}},
 
 	/* Altera Cyclone V */
 	{0x02b010dd, {"altera", "cyclone V",     "5CGX*3",                10}},
@@ -204,13 +208,19 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x02d120dd, {"altera", "cyclone V Soc", "5CSE*A5/5CST*5/5CSX*5", 10}},
 
 	/* Altera Max 10 */
-	{0x031820dd, {"altera", "MAX 10", "10M08SAU169C8G", 10}},
-	{0x031050dd, {"altera", "MAX 10", "10M50DAF484",    10}},
-	{0x0318d0dd, {"altera", "MAX 10", "10M40SCE144C8G",    10}},
+	/** single-supply **/
+	{0x031810dd, {"altera", "MAX 10", "10M02S", 10}},
+	{0x031820dd, {"altera", "MAX 10", "10M08S", 10}},
+	{0x031830dd, {"altera", "MAX 10", "10M16S", 10}},
+	{0x0318d0dd, {"altera", "MAX 10", "10M40S", 10}},
+	{0x031850dd, {"altera", "MAX 10", "10M50S", 10}},
+	/** dual-supply **/
+	{0x031050dd, {"altera", "MAX 10", "10M50D", 10}},
 
 	/* Altera Cyclone 10 */
 	{0x020f30dd, {"altera", "cyclone 10 LP", "10CL025", 10}},
 	{0x020f50dd, {"altera", "cyclone 10 LP", "10CL055", 10}},
+	{0x020f60dd, {"altera", "cyclone 10 LP", "10CL080", 10}},
 
 	/* Altera Stratix V */
 	{0x029070dd, {"altera", "stratix V GS", "5SGSD5", 10}},
@@ -290,6 +300,9 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 
 	{0x012e3043, {"lattice", "MachXO3D", "LCMX03D-9400HC", 8}},
 
+	/* Lattice ECP3 */
+	{0x01014043, {"lattice", "ECP3", "LFE3-70E",    8}},
+
 	/* Lattice ECP5 */
 	{0x21111043, {"lattice", "ECP5", "LFE5U-12",    8}},
 	{0x41111043, {"lattice", "ECP5", "LFE5U-25",    8}},
@@ -329,9 +342,11 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 
 	/* Gowin GW2 */
 	{0x0000081b, {"Gowin", "GW2A", "GW2A(R)-18(C)", 8}},
+	{0x0000281B, {"Gowin", "GW2A", "GW2A-55",       8}},
 
 	/* Gowin GW5 */
 	{0x0001081b, {"Gowin", "GW5AST", "GW5AST-138", 8}},
+	{0x0001481b, {"Gowin", "GW5AT",  "GW5AT-60",   8}},
 	{0x0001181b, {"Gowin", "GW5AT",  "GW5AT-138",  8}},
 	{0x0001281b, {"Gowin", "GW5A",   "GW5A-25",    8}},
 

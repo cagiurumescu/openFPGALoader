@@ -38,8 +38,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-        - 20
         - 22
+        - 24
     name: '🚧🐧 Ubuntu ${{ matrix.os }} | build'
     runs-on: ubuntu-${{ matrix.os }}.04
     steps:
@@ -122,8 +122,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-        - 20
         - 22
+        - 24
     name: '🚦🐧 Ubuntu ${{ matrix.os }} | test'
     runs-on: ubuntu-${{ matrix.os }}.04
     steps:

@@ -12,6 +12,13 @@ arm-usb-ocd-h:
     URL: https://www.olimex.com/Products/ARM/JTAG/ARM-USB-OCD-H/
 
 
+arm-usb-tiny-h:
+
+  - Name: Olimex ARM-USB-TINY-H adapter
+    Description: Low-cost high-speed ARM USB JTAG
+    URL: https://www.olimex.com/Products/ARM/JTAG/ARM-USB-TINY-H/
+
+
 bus_blaster:
 
   - Name: Dangerousprototypes Bus Blaster
@@ -285,6 +292,13 @@ usb-blasterII:
 
   - Name: intel USB Blaster II interface
     Description: JTAG programmer cable from intel/altera (EZ-USB FX2 + EPM570)
+    URL: https://www.intel.com/content/dam/www/programmable/us/en/pdfs/literature/ug/ug_usb_blstr_ii_cable.pdf
+
+
+usb-blasterIII:
+
+  - Name: intel USB Blaster III interface
+    Description: JTAG programmer cable from intel/altera (FTDI2232 with custom VID/PID)
     URL: https://www.intel.com/content/dam/www/programmable/us/en/pdfs/literature/ug/ug_usb_blstr_ii_cable.pdf
 
 

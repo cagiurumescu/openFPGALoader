@@ -6,6 +6,32 @@ Installing openFPGALoader
 Linux
 =====
 
+Debian/Ubuntu
+----------
+
+openFPGALoader is available in the default repositories:
+
+.. code-block:: bash
+    
+    sudo apt install openfpgaloader
+
+Guix
+----------
+
+openFPGALoader is available in the default repositories:
+
+.. code-block:: bash
+
+    guix install openfpgaloader
+
+To use openFPGALoader under GuixSystem without root privileges it is necessary to install the necessary udev rules. This can be done by extending ``udev-service-type`` in the ``operating-system`` configuration file with this package
+
+.. code-block:: bash
+
+    (udev-rules-service 'openfpgaloader openfpgaloader #:groups '(\"plugdev\")
+
+Additionally, ``plugdev`` group should be registered in the ``supplementary-groups`` field of your ``user-account``declaration.  Refer to ``Base Services`` section in the manual for examples.
+
 Arch Linux
 ----------
 
@@ -33,7 +59,7 @@ openFPGALoader is available as a Copr repository:
     sudo dnf copr enable mobicarte/openFPGALoader
     sudo dnf install openFPGALoader
 
-From source (Debian, Ubuntu)
+From source 
 ----------------------------
 
 This application uses ``libftdi1``, so this library must be installed (and, depending on the distribution, headers too):

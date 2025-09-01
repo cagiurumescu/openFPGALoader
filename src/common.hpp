@@ -7,6 +7,7 @@
 #define SRC_COMMON_HPP_
 
 #include <string>
+#include <vector>
 
 /*!
  * \brief return shell environment variable value
@@ -16,5 +17,14 @@
  */
 const std::string get_shell_env_var(const char* key,
 	const char *def_val="") noexcept;
+
+/*!
+ * \brief convert a string, separate by delim to a vector
+ * \param[in] in: string to split
+ * \param[in] delim: split caracter
+ * \return vector a substring
+ */
+const std::vector<std::string> splitString(const std::string& in,
+	const char delim) noexcept;
 
 #endif  // SRC_COMMON_HPP_
